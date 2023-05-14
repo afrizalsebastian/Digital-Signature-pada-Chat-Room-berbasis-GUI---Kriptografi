@@ -31,25 +31,30 @@ class Client :
     def gui_loop(self) :
         self.win = tkinter.Tk()
         self.win.configure(bg="lightgray")
+        self.win.title("Digital Signature Chatroom")
 
-        self.chat_label = tkinter.Label(self.win, text="Chat : ", bg="lightgray")
-        self.chat_label.config(font=('Arial', 12))
-        self.chat_label.pack(padx=20, pady=5)
+        self.chat_label = tkinter.Label(self.win, text="Chatroom : ", bg="lightgray")
+        self.chat_label.config(font=('Space Mono', 12))
+        self.chat_label.pack(padx=15, pady=5)
 
         self.text_area = tkinter.scrolledtext.ScrolledText(self.win)
-        self.text_area.pack(padx=20, pady=5)
-        self.text_area.config(state='disabled')
+        self.text_area.pack(padx=15, pady=5)
+        self.text_area.config(state='disabled', font=('Space Mono', 16),height=20)
 
         self.message_label = tkinter.Label(self.win, text="Message : ", bg="lightgray")
-        self.message_label.config(font=('Arial', 12))
-        self.message_label.pack(padx=20, pady=5)
+        self.message_label.config(font=('Space Mono', 12))
+        self.message_label.pack(padx=15, pady=5)
 
-        self.input_are = tkinter.Text(self.win, height=3)
-        self.input_are.pack(padx=20, pady=5)
+        self.input_message = tkinter.Text(self.win, height=3)
+        self.input_message.pack(padx=15, pady=5)
 
         self.send_button = tkinter.Button(self.win, text='Send', command=self.write)
-        self.send_button.config(font=('Arial', 12))
-        self.send_button.pack(padx=20, pady=5)
+        self.send_button.config(font=('Space Mono', 12))
+        self.send_button.pack(padx=15, pady=5)
+
+        self.nickname_label = tkinter.Label(self.win, text=f"Nickname : {self.nickname} ", bg="lightgray")
+        self.nickname_label.config(font=('Space Mono', 16))
+        self.nickname_label.pack(padx=15, pady=5)
 
         self.gui_done = True
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
@@ -58,10 +63,10 @@ class Client :
 
 
     def write(self):
-        message = f"{self.nickname} : {self.input_are.get('1.0', 'end')}"
+        message = f"{self.nickname} : {self.input_message.get('1.0', 'end')}"
         message = sign(message, self.privateKey)
         self.socket.send(message.encode('utf-8'))
-        self.input_are.delete('1.0', 'end')
+        self.input_message.delete('1.0', 'end')
     
     def stop(self):
         self.running = False
@@ -98,7 +103,7 @@ class Client :
 
                     if(self.gui_done):
                         self.text_area.config(state='normal')
-                        self.text_area.insert('end', message+"\n")
+                        self.text_area.insert('end', message)
                         self.text_area.yview('end')
                         self.text_area.config(state='disabled')
             except ConnectionAbortedError:

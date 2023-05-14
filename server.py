@@ -51,8 +51,8 @@ def receive():
         nicknames.append(nickname)
         clients.append(client)
 
-        broadcast(f"{nickname} connected to server".encode('utf-8'), (publicKey1, publicKey2))
-        client.send("Connected to the server".encode('utf-8'))
+        broadcast(f"{nickname.decode('utf-8')} connected to chat room\n".encode('utf-8'), (publicKey1, publicKey2))
+        client.send("Connected to the server\n".encode('utf-8'))
 
 
         thread = threading.Thread(target=handle, args=(client,))
