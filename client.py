@@ -3,7 +3,7 @@ import threading
 import tkinter
 import tkinter.scrolledtext
 from tkinter import simpledialog
-from DigitalSignature import *
+from ECDSA import ECDSA
 
 HOST = 'localhost'
 PORT = 5000
@@ -20,13 +20,19 @@ class Client :
         self.nickname = simpledialog.askstring("Nickname", "Please choose a nickname", parent=msg)
         self.gui_done = False
         self.running = True
-        self.privateKey, self.publicKey = generateKeyPair()
+        self.privateKey, self.publicKey = self.generateKeyPair()
 
         gui_thread = threading.Thread(target=self.gui_loop)
         receive_thread = threading.Thread(target=self.recieve)
         
         gui_thread.start()
         receive_thread.start()
+
+    def generateKeyPair(self):
+        ecdsa = ECDSA()
+        privateKey, publicKey = ecdsa.generateKeyPair()
+        return privateKey, publicKey
+
 
     def gui_loop(self) :
         self.win = tkinter.Tk()
@@ -61,10 +67,17 @@ class Client :
 
         self.win.mainloop()
 
+    def sign(self, messages : str, privateKey : str):
+        ecdsa = ECDSA()
+        message = ecdsa.strToInt(messages)
+        privateKey = int(privateKey)
+        signature = ecdsa.sign(message, privateKey)
+        signed_message = messages + "\n\nSIGNATURE_BEGIN\n" + hex(signature[0][0])[2:] + "\n" + hex(signature[0][1])[2:] + "\n" + hex(signature[1])[2:] + "\nSIGNATURE_END"
+        return signed_message
 
     def write(self):
         message = f"{self.nickname} : {self.input_message.get('1.0', 'end')}"
-        message = sign(message, self.privateKey)
+        message = self.sign(message, self.privateKey)
         self.socket.send(message.encode('utf-8'))
         self.input_message.delete('1.0', 'end')
     
@@ -73,6 +86,23 @@ class Client :
         self.win.destroy()
         self.socket.close()
         exit(0)
+
+        
+
+    def verify(self, signed_message : str, publicKey1 : str, publicKey2 : str):
+        message = signed_message.split("\n\nSIGNATURE_BEGIN")[0]
+        signature_string = signed_message.split("\n\nSIGNATURE_BEGIN")[1].split("\nSIGNATURE_END")[0].split("\n")
+        signature = [[0, 0], 0]
+        signature[0][0] = int(signature_string[1], 16)
+        signature[0][1] = int(signature_string[2], 16)
+        signature[1] = int(signature_string[3], 16)
+        ecdsa = ECDSA()
+        message = ecdsa.strToInt(message)
+        publicKey1 = int(publicKey1)
+        publicKey2 = int(publicKey2)
+        publicKey = [publicKey1, publicKey2]
+        valid = ecdsa.verify(message, publicKey, signature)
+        return valid
 
     def recieve(self):
         while self.running :
@@ -92,7 +122,7 @@ class Client :
                         public_2 = key[1]
                     messageWithSignature = message_parts[0]
                     if(len(messageWithSignature.split("\n\nSIGNATURE_BEGIN")) > 1):
-                        valid = verify(messageWithSignature, public_1, public_2)
+                        valid = self.verify(messageWithSignature, public_1, public_2)
                         if(valid):
                             message = messageWithSignature.split("\n\nSIGNATURE_BEGIN")[0]
                         else :
@@ -114,39 +144,3 @@ class Client :
                 break
 
 client = Client(HOST, PORT)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# import socket
-
-# client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-# client.connect(('localhost', 5000))
-
-# isFinish = False
-
-# while not isFinish:
-#     client.send(input("You :").encode('utf-8'))
-#     message = (client.recv(1024).decode('utf-8'))
-
-#     if(message == 'quit'):
-#         isFinish = True
-#     else :
-#         print(message)
