@@ -4,6 +4,7 @@ import tkinter
 import tkinter.scrolledtext
 from tkinter import simpledialog
 from ECDSA import ECDSA
+from Crypto.Cipher import AES
 
 HOST = 'localhost'
 PORT = 5000
@@ -20,6 +21,7 @@ class Client :
         self.nickname = simpledialog.askstring("Nickname", "Please choose a nickname", parent=msg)
         self.gui_done = False
         self.running = True
+        self.setupCounter = 0
         self.privateKey, self.publicKey = self.generateKeyPair()
 
         gui_thread = threading.Thread(target=self.gui_loop)
@@ -74,11 +76,18 @@ class Client :
         signature = ecdsa.sign(message, privateKey)
         signed_message = messages + "\n\nSIGNATURE_BEGIN\n" + hex(signature[0][0])[2:] + "\n" + hex(signature[0][1])[2:] + "\n" + hex(signature[1])[2:] + "\nSIGNATURE_END"
         return signed_message
+    
+    def pad_data(self, data:bytes):
+        padding_length = 16 - (len(data) % 16)
+        padding = chr(padding_length) * padding_length
+        return data + padding.encode()
 
     def write(self):
         message = f"{self.nickname} : {self.input_message.get('1.0', 'end')}"
         message = self.sign(message, self.privateKey)
-        self.socket.send(message.encode('utf-8'))
+        cipher = AES.new(self.encryptKey, AES.MODE_ECB)
+        ciphertext = cipher.encrypt(self.pad_data(message.encode('utf-8')))
+        self.socket.send(ciphertext)
         self.input_message.delete('1.0', 'end')
     
     def stop(self):
@@ -103,24 +112,47 @@ class Client :
         publicKey = [publicKey1, publicKey2]
         valid = ecdsa.verify(message, publicKey, signature)
         return valid
+    
+    def unpad_data(self, data : bytes):
+        padding_length = data[-1]
+        return data[:-padding_length]
+    
+    def countSetup(self):
+        if(self.setupCounter != 4):
+            return True
+        else :
+            return False
 
     def recieve(self):
         while self.running :
             try:
-                message = self.socket.recv(2048).decode('utf-8')
-                if(message == 'PUBLIC-1'):
-                    self.socket.send(str(self.publicKey[0]).encode('utf-8'))
-                elif(message == 'PUBLIC-2'):
-                    self.socket.send(str(self.publicKey[1]).encode('utf-8'))
-                elif(message == 'NICK'):
-                    self.socket.send(self.nickname.encode('utf-8'))
+                message = self.socket.recv(2048)
+                if(self.countSetup()):
+                    messageDecode = message[0:20].decode('utf-8')
                 else :
-                    message_parts = message.split("\n\nMESSAGE")
+                    messageDecode = "MESSAGE"
+
+                if(messageDecode == 'PUBLIC-1'):
+                    self.socket.send(str(self.publicKey[0]).encode('utf-8'))
+                    self.setupCounter +=1
+                elif(messageDecode == 'PUBLIC-2'):
+                    self.socket.send(str(self.publicKey[1]).encode('utf-8'))
+                    self.setupCounter +=1
+                elif(messageDecode == 'NICK'):
+                    self.socket.send(self.nickname.encode('utf-8'))
+                    self.setupCounter +=1
+                elif(messageDecode.split("\n")[0] == 'ENCKEY'):
+                    self.encryptKey = eval(message.decode('utf-8').split("\n")[1])
+                    self.setupCounter +=1
+                else :
+                    message_parts = message.decode('utf-8').split("\n\nMESSAGE")
                     if(len(message_parts) > 1):
                         key = message_parts[1].split("\n\n")
                         public_1 = key[0]
                         public_2 = key[1]
-                    messageWithSignature = message_parts[0]
+                        encryptMessage = eval(message_parts[0])
+                        decryptMessage = AES.new(self.encryptKey, AES.MODE_ECB).decrypt(encryptMessage)
+                        messageWithSignature = self.unpad_data(decryptMessage).decode('utf-8')
                     if(len(messageWithSignature.split("\n\nSIGNATURE_BEGIN")) > 1):
                         valid = self.verify(messageWithSignature, public_1, public_2)
                         if(valid):
@@ -129,7 +161,9 @@ class Client :
                             sender = messageWithSignature.split("\n\nSIGNATURE_BEGIN")[0].split(" : ")[0]
                             message = f"{sender} : This Message Have Been Interrupted"
                     else :
-                        message = message_parts[0]
+                        message = eval(message_parts[0])
+                        message = AES.new(self.encryptKey, AES.MODE_ECB).decrypt(message)
+                        message = self.unpad_data(message).decode('utf-8')
 
                     if(self.gui_done):
                         self.text_area.config(state='normal')
