@@ -47,7 +47,7 @@ class Client :
 
         self.text_area = tkinter.scrolledtext.ScrolledText(self.win)
         self.text_area.pack(padx=15, pady=5)
-        self.text_area.config(state='disabled', font=('Space Mono', 16),height=20)
+        self.text_area.config(state='disabled', font=('Space Mono', 16),height=16)
 
         self.message_label = tkinter.Label(self.win, text="Message : ", bg="lightgray")
         self.message_label.config(font=('Space Mono', 12))
